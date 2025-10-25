@@ -1,0 +1,14 @@
+# Ignore everything
+
+
+# But not these specific files/folders
+!.gitignore
+!Program.cs
+!base/
+!BasicDataBase.sln
+!BasicDataBase.csproj
+!README.md
+
+# Explicitly ignore build folders
+obj/
+bin/
