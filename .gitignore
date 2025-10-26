@@ -12,3 +12,4 @@
 # Explicitly ignore build folders
 obj/
 bin/
+tests/
