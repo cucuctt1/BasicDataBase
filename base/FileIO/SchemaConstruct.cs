@@ -7,12 +7,14 @@ namespace BasicDataBase.FileIO
 {
     // SchemaConstruct represents the schema of a table: column names and types
     // datatype construct
+    // add blob
     public enum FieldType
     {
         Integer,
         String,
         Boolean,
-        DateTime
+        DateTime,
+        Blob
     }
 
     public class Field
@@ -56,6 +58,7 @@ namespace BasicDataBase.FileIO
                     "string" => FieldType.String,
                     "bool" => FieldType.Boolean,
                     "datetime" => FieldType.DateTime,
+                    "blob" => FieldType.Blob,
                     _ => throw new ArgumentException($"Unknown field type: {typeStr}")
                 };
                 schema.AddField(name, type, maxLength);
@@ -82,6 +85,7 @@ namespace BasicDataBase.FileIO
                     FieldType.String => "string",
                     FieldType.Boolean => "bool",
                     FieldType.DateTime => "datetime",
+                    FieldType.Blob => "blob",       
                     _ => throw new ArgumentException($"Unknown field type: {field.Type}")
                 };
                 if (field.Type == FieldType.String && field.MaxLength > 0)

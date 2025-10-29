@@ -36,7 +36,6 @@ public class SchemaInstruction
         RecordSize = offset;
     }
 
-
     private int GetFieldSize(Field field)
     {
         return field.Type switch
@@ -44,7 +43,9 @@ public class SchemaInstruction
             FieldType.Integer => sizeof(int),
             FieldType.Boolean => sizeof(bool),
             FieldType.DateTime => sizeof(long), // store DateTime as ticks (long)
+            FieldType.Blob => 128 * sizeof(char), // store Blob as fixed-length string of 128 characters
             FieldType.String => field.MaxLength > 0 ? field.MaxLength * sizeof(char) : 50 * sizeof(char), // default max length 50
+            
             _ => throw new Exception("Unknown field type")
         };
     }

@@ -11,6 +11,9 @@ namespace BasicDataBase
         {
             schemaConstruct_Test.Test();
             schemaInstruction_Test.Test();
+            Metadata_Test.Test();
+            Write_Test.Test();
+            Read_Test.Test();
         }
     }
 }
