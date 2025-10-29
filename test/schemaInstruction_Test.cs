@@ -12,7 +12,7 @@ namespace BasicDataBase.Test
     {
         public static void Test()
         {
-            Schema schema = Schema.FromString("Id:int,Name:string:4,IsActive:bool,CreatedAt:datetime");
+            Schema schema = Schema.FromString("Id:int,Name:string:4,IsActive:bool,CreatedAt:datetime,Data:blob");
             SchemaInstruction instruction = new SchemaInstruction(schema);
 
             Console.WriteLine("Field Offsets:");
