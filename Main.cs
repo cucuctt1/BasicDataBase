@@ -9,11 +9,21 @@ namespace BasicDataBase
     {
         static void Main(string[] args)
         {
-            schemaConstruct_Test.Test();
-            schemaInstruction_Test.Test();
-            Metadata_Test.Test();
-            Write_Test.Test();
-            Read_Test.Test();
+            // Run benchmark. If an argument is provided, use it as record count (e.g. dotnet run -- 100000)
+            int count = -1;
+            if (args != null && args.Length > 0)
+            {
+                int.TryParse(args[0], out count);
+            }
+            // allow `search` action: dotnet run -- search
+            if (args != null && args.Length > 0 && args[0].Equals("search", StringComparison.OrdinalIgnoreCase))
+            {
+                BasicDataBase.Test.Search_Test.Test();
+            }
+            else
+            {
+                BasicDataBase.Test.Benchmark_Test.Test(count);
+            }
         }
     }
 }

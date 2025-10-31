@@ -23,7 +23,6 @@ namespace BasicDataBase.Test
             
             // Write metadata
             MetaWriter.WriteMetaData("test_metadata.meta", schema, bits);
-            Console.WriteLine("Metadata written to test_metadata.meta");
 
             // Prepare mutiple data
             object[] data = new object[]
@@ -43,7 +42,7 @@ namespace BasicDataBase.Test
                 DateTime.Now,
                 "dir1/dir2/file.txt"
             };
-            
+
             // 2dim object array
             object[,] dataArray = new object[,]
             {
@@ -51,12 +50,20 @@ namespace BasicDataBase.Test
                 { 4, "Bob", false, DateTime.Now, "dir1/dir2/file.txt" }
             };
             
-            // Write data to file
-            FileWriter writer = new FileWriter();
-            writer.Write2DataFile("test_metadata.meta", "test_data.dat", schemaStr, data);
-            writer.Write2DataFile("test_metadata.meta", "test_data.dat", schemaStr, data2);
-            writer.Write2DataFile("test_metadata.meta", "test_data.dat", schemaStr, dataArray);
-            Console.WriteLine("Data written to test_data.dat");
+            
+
+            // Write data to file using FileIOManager
+            FileIOManager.AppendRecord("test_metadata.meta", "test_data.dat", data);
+            FileIOManager.AppendRecord("test_metadata.meta", "test_data.dat", data2);
+            // write the 2D array rows
+            for (int r = 0; r < dataArray.GetLength(0); r++)
+            {
+                var row = new object[dataArray.GetLength(1)];
+                for (int c = 0; c < dataArray.GetLength(1); c++) row[c] = dataArray[r, c];
+                FileIOManager.AppendRecord("test_metadata.meta", "test_data.dat", row);
+            }
+            // data written
+            
         }
     }
 }
