@@ -9,7 +9,7 @@ namespace BasicDataBase.FileIO
 {
     public static class FileReader
     {
-        public static string schemaLine;
+    public static string? schemaLine;
         public static BitArray decodedBits = new BitArray(1, false);
 
         // check for header format
@@ -22,7 +22,8 @@ namespace BasicDataBase.FileIO
                 // row 1  read schema
                 schemaLine = reader.ReadLine();
                 // row 2 read instruction
-                string instructionLine = reader.ReadLine();
+                string? instructionLine = reader.ReadLine();
+                if (instructionLine == null) throw new InvalidDataException("Metadata instruction line missing");
                 decodedBits = EDHex.HexToBit(instructionLine);
             }
         }
@@ -33,6 +34,7 @@ namespace BasicDataBase.FileIO
             ReadHeader(MetaDataDir);
 
             // parse schema so we can convert bytes to typed objects
+            if (schemaLine == null) throw new InvalidDataException("Metadata schema line missing");
             Schema schema = Schema.FromString(schemaLine);
 
             // decoded bits to field num
@@ -50,6 +52,7 @@ namespace BasicDataBase.FileIO
                 while (reader.BaseStream.Position < reader.BaseStream.Length)
                 {
                     List<object> currentRow = new List<object>();
+                    int actualBytesRead = 0;
                     for (int fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++)
                     {
                         // if there's not enough bytes left to read a length, break
@@ -62,9 +65,13 @@ namespace BasicDataBase.FileIO
                         if (len > 0)
                         {
                             fieldBytes = reader.ReadBytes(len);
-                        }
+                            //get actual bytes read
+                            actualBytesRead += fieldBytes.Length;
 
-                        object value = null;
+                        }
+                        
+
+                        object? value = null;
                         if (fieldIndex < schema.Fields.Count)
                         {
                             var ftype = schema.Fields[fieldIndex].Type;
@@ -75,30 +82,22 @@ namespace BasicDataBase.FileIO
                             value = DataTypeConverter.BytesToString(fieldBytes);
                         }
 
-                        // debug
-                        try { Console.WriteLine($"DEBUG Field[{fieldIndex}] len={fieldBytes.Length} -> {(value is byte[] ? "[byte[]]" : value?.ToString())}"); } catch { }
                         currentRow.Add(value);
                     }
-
                     if (currentRow.Count > 0)
                         rows.Add(currentRow.ToArray());
                 }
             }
-
             if (rows.Count == 0)
                 return new object[0, 0];
 
             int rowCount = rows.Count;
             int colCount = fieldCount;
-            Console.WriteLine($"Total Rows Read: {rowCount}, Columns per Row: {colCount}");
             object[,] result = new object[rowCount, colCount];
             for (int i = 0; i < rowCount; i++)
                 for (int j = 0; j < colCount; j++)
-                {
-                    // protect against short rows
-                    result[i, j] = j < rows[i].Length ? rows[i][j] : null;
-                    Console.WriteLine($"Row {i}, Col {j}: {result[i, j]}");
-                }
+                    // rows[i][j] may be null; assign with null-forgiving to satisfy nullable analysis
+                    result[i, j] = j < rows[i].Length ? rows[i][j] : null!;
 
             return result;
         }
