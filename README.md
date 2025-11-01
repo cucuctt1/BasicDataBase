@@ -1,117 +1,194 @@
-# BasicDataBase
+# Tổng Quan Chỉ Mục B+ Tree
 
-A small, educational .NET-based miniature database demo focused on a simple schema representation and file I/O utilities.
+Tài liệu này mô tả thiết kế, API và cách sử dụng của `base/Index/BPlusTree.cs` trong dự án `BasicDataBase`.
 
-This repository contains a tiny schema model and helpers to parse/serialize simple table schemas. It is intended for learning and demonstration purposes.
+## Động lực & Mức độ phù hợp
 
-## What this project contains
+B+ tree cung cấp chỉ mục có thứ tự trên khóa dạng chuỗi cho các bảng được lưu trữ bởi lớp File I/O. Mỗi khóa ánh xạ tới một hoặc nhiều mã định danh bản ghi (row ordinal). Cấu trúc này hỗ trợ truy vấn bằng toán tử bằng (`=`) và khoảng (`BETWEEN`) hiệu quả, đồng thời liên kết các lá để việc quét tuần tự vẫn giữ được thứ tự thân thiện với đĩa.
 
-- `BasicDataBase.csproj` - project file (targeting .NET 9.0 in this workspace).
-- `Main.cs` - application entry (demo runner / console app).
-- `base/FileIO/SchemaConstruct.cs` - schema model: `FieldType`, `Field`, `Schema` with parsing and formatting helpers.
-- `base/FileIO/FieldBitFlags.cs` and `base/FileIO/SchemaInstruction.cs` - supporting file I/O utilities.
-- `base/FileIO/utils/BitSchemaPad.cs` - small utilities used by file I/O.
-- `test/` - test source files (example tests for schema parsing/formatting).
+## Cấu trúc nút
 
-## Key types (quick reference)
+- **Bậc (order)**: ngầm định; nút trong giữ mảng khóa đã sắp xếp và các con trỏ con với kích thước phù hợp.
+- **InternalNode**
+  - `List<string> Keys`: các khóa chia đoạn phạm vi của con.
+  - `List<Node> Children`: danh sách con trỏ tới nút con (lúc đầy có nhiều hơn số khóa một phần tử).
+- **LeafNode**
+  - `List<string> Keys`: danh sách khóa đã sắp xếp.
+  - `List<List<int>> Values`: danh sách song song lưu các bucket id bản ghi cho từng khóa.
+  - `LeafNode? Next` / `LeafNode? Previous`: danh sách liên kết đôi giúp quét theo thứ tự.
 
-Open `base/FileIO/SchemaConstruct.cs` for full details. Main types:
+Mọi nút đều kế thừa `Node` (abstract) để hỗ trợ đa hình và che giấu chi tiết triển khai.
 
-- `enum FieldType` - supported types: `Integer`, `String`, `Boolean`, `DateTime`, `Blob`.
-- `class Field` - properties: `Name`, `Type`, `MaxLength` (for string length limits).
-- `class Schema` - holds `List<Field> Fields` and helpers:
-  - `static Schema FromString(string schemaString)` - parse a comma-separated schema specification.
-  - `static Schema FromArray(string[] fields)` - convenience wrapper around `FromString`.
-  - `override string ToString()` - serializes back to the same compact representation.
+## Các thao tác lõi
 
-Schema syntax (used by `FromString`) is a CSV of colon-delimited field definitions:
+| API | Mô tả | Độ phức tạp |
+|-----|-------|-------------|
+| `Insert(string key, int recordId)` | Chèn khóa (cho phép trùng) kèm id bản ghi vào lá, tách nút khi cần. | O(log n) cho tìm kiếm + chi phí tách trung bình |
+| `Search(string key)` | Trả về bucket id ứng với khóa chính xác (hoặc rỗng). | O(log n + k) với `k` là số kết quả |
+| `SearchPrefix(string prefix)` | Tìm vị trí bắt đầu theo tiền tố và duyệt lá cho tới khi hết khớp. | O(log n + r) với `r` là số phần tử trong dải |
+| `SearchRange(string? min, string? max, bool minInclusive = true, bool maxInclusive = true)` | Quét trong khoảng tùy chọn (bao gồm/loại trừ biên). | O(log n + r) |
+| `Traverse(...)` | Iterator `IEnumerable<KeyValuePair<string, IReadOnlyList<int>>>` cho phép stream theo chuỗi lá, hỗ trợ giới hạn và cờ bao gồm biên. | O(log n + r) |
+| `Delete(string key, int recordId)` *(nội bộ)* | Xóa id bản ghi khỏi bucket, cân bằng lại nếu nút thiếu phần tử. | O(log n) với khả năng gộp |
 
-- `Name:type` or `Name:type:maxLength` for strings.
-- Example: `Id:int,Name:string:100,IsActive:bool,CreatedAt:datetime,Data:blob`
-
-Supported types mapping (string tokens -> `FieldType`):
-- `int` -> `Integer`
-- `string` -> `String`
-- `bool` -> `Boolean`
-- `datetime` -> `DateTime`
-- `blob` -> `Blob`
-
-## Example usage (C# snippet)
-
-This shows how to parse and inspect a schema programmatically:
+### Ví dụ nhanh: thao tác trực tiếp với `BPlusTree`
 
 ```csharp
-using System;
-using BasicDataBase.FileIO;
+using BasicDataBase.Index;
 
-class Demo
+var tree = new BPlusTree();
+tree.Insert("alice", 0);
+tree.Insert("bob", 1);
+tree.Insert("bob", 5); // khóa trùng gom chung bucket
+
+var exact = tree.Search("bob"); // trả về [1, 5]
+var range = tree.SearchRange("a", "c"); // chọn mọi khóa trong [a, c]
+
+foreach (var pair in tree.Traverse())
 {
-    static void Main()
-    {
-        var schema = Schema.FromString("Id:int,Name:string:100,IsActive:bool,CreatedAt:datetime,Data:blob");
-        Console.WriteLine("Parsed fields:");
-        foreach (var f in schema.Fields)
-        {
-            Console.WriteLine($"- {f.Name} ({f.Type}){(f.Type == FieldType.String && f.MaxLength > 0 ? $\" [max={f.MaxLength}]\" : string.Empty)}");
-        }
-
-        // Serialize back to compact string
-        Console.WriteLine("\nSerialized: " + schema.ToString());
-    }
+    Console.WriteLine($"{pair.Key} -> {string.Join(",", pair.Value)}");
 }
 ```
 
-## Build & run (Windows PowerShell)
+## Cơ chế dựng cây (Insert pipeline)
 
-From the project root (where `BasicDataBase.csproj` is located):
+Luồng dựng cây xoay quanh các phương thức `Node.Insert`, `InternalNode.Insert` và `LeafNode.Insert`:
 
-```powershell
-# Build
-dotnet build .\BasicDataBase.csproj
+1. **Đi xuống lá**: `InternalNode.Insert` chọn con bằng `FindChildIndex` (so sánh nhị phân) rồi gọi `Insert` đệ quy.
+2. **Chèn vào lá**: `LeafNode.Insert` sử dụng `BinarySearch` để tìm vị trí chính xác, chèn khóa và danh sách id tương ứng.
+3. **Tách nút**: Khi số khóa của lá vượt `_maxKeys`, nó tách đôi, tạo `SplitResult` chứa khóa đi lên và nút phải mới.
+4. **Đẩy khóa lên cha**: Cha nhận `SplitResult`, chèn khóa phân cách và thêm con phải vào danh sách `Children`. Nếu cha cũng tràn, quá trình tách tiếp tục lan lên cho tới gốc (có thể sinh gốc mới).
 
-# Run using dotnet (uses Main.cs)
-dotnet run --project .\BasicDataBase.csproj
+Trích đoạn từ `InternalNode.Insert` mô tả việc nhận `SplitResult` và tách nút trong:
 
-# Or run the compiled exe after building
-.
-# After successful build, the exe lives at:
-# .\bin\Debug\net9.0\BasicDataBase.exe
-& .\bin\Debug\net9.0\BasicDataBase.exe
+```csharp
+var split = child.Insert(key, value, maxKeys, minInternal, minLeaf);
+if (split != null)
+{
+  Keys.Insert(childIndex, split.Key);
+  Children.Insert(childIndex + 1, split.RightNode);
+  split.RightNode.Parent = this;
+}
+
+if (Keys.Count > maxKeys)
+{
+  int mid = Keys.Count / 2;
+  string upKey = Keys[mid];
+  var right = new InternalNode(Order);
+  // di chuyển khóa và con sang nút phải
+  ...
+  return new SplitResult(upKey, right);
+}
 ```
 
-If you need to target a different configuration, change the `dotnet build` parameters.
+Nhờ cơ chế này, gốc luôn giữ chiều cao tối thiểu và cây cân bằng (mọi lá cùng độ sâu).
 
-## Tests
+### Cân bằng sau khi xóa
 
-There are a couple of sample tests in the `test/` folder (for example `schemaConstruct_Test.cs` and `schemaInstruction_Test.cs`). If a test project is present/configured, run tests with:
+Khi `Delete` loại bỏ một id và khiến nút thiếu phần tử, `InternalNode.Delete` kích hoạt `BalanceChild`:
 
-```powershell
-# if test project exists and is properly configured
-dotnet test
+- **Borrow (mượn)**: lấy bớt khóa/child từ anh em khi họ còn dư (`TryBorrowLeft` / `TryBorrowRight`).
+- **Merge (gộp)**: nếu không mượn được, gộp hai nút và cập nhật liên kết lá/cha.
+- **RebuildKeys**: cập nhật khóa phân cách trong cha để phản ánh giới hạn mới.
+
+Một đoạn trong `TryBorrowLeft` cho lá:
+
+```csharp
+var movedKey = leftLeaf.Keys[^1];
+var movedValues = leftLeaf.Values[^1];
+leftLeaf.Keys.RemoveAt(leftLeaf.Keys.Count - 1);
+leafChild.Keys.Insert(0, movedKey);
+leafChild.Values.Insert(0, movedValues);
+Keys[separatorIndex] = leafChild.Keys[0];
 ```
 
-If tests are not wired into a separate test project in this repo yet, you can run the simple example in `Main.cs` or add a test project and reference the library code.
+Việc cân bằng đảm bảo mỗi nút (trừ gốc) luôn giữ ít nhất `_minKeysLeaf` hoặc `_minKeysInternal` khóa.
 
-## Notes & assumptions
+## Lớp hỗ trợ tìm kiếm bậc cao
 
-- The code targets .NET 9.0 (see `bin/Debug/net9.0` in the repository layout). Adjust the SDK if you use a different runtime.
-- The schema parser expects well-formed tokens (simple validation inside `FromString` will throw an `ArgumentException` on unknown types).
-- `MaxLength` currently only applies to `string` fields and will be zero when not provided.
+`IndexManager` và `TableManager` bao bọc các thao tác thô của cây:
 
-## Next steps / suggestions
+- `SearchExact(fieldName, key)` → `Search`
+- `SearchPrefix(fieldName, prefix)` → `SearchPrefix`
+- `SearchRange(fieldName, min, max)` → `SearchRange`
+- `SearchGreaterThan(fieldName, key, inclusive)` → quét từ biên dưới
+- `SearchLessThan(fieldName, key, inclusive)` → quét tới biên trên
+- `SearchTopK(fieldName, k, descending)` → duyệt có thứ tự lấy `k` phần tử đầu/cuối
 
-- Add a small sample `README`-driven demo (console arguments) to make running the parser with custom input easier.
-- Wire tests into a proper `dotnet test` project so CI can run them.
-- Add small examples showing writing/reading records using the `base/FileIO` utilities.
+Các helper đảm bảo chỉ mục đã sẵn sàng (`TableDefinition.EnsureIndex`).
 
-## License
+### Ví dụ: kết hợp với `TableManager`
 
-Add your preferred license file (e.g., `LICENSE`) if you plan to publish this project.
+```csharp
+using BasicDataBase.Table;
 
----
+var manager = new TableManager("table");
+manager.BuildIndex("users", "username");
 
-If you want, I can also:
-- Add a short demo program that prints schema parsing output from a CLI argument.
-- Create a proper test csproj and a couple of unit tests to run with `dotnet test`.
+var top3 = manager.SearchTopK("users", "username", 3);
+var greater = manager.SearchGreaterThan("users", "username", "charlie");
+```
 
-Tell me which of those you'd like next.
+## Quy trình chèn & tách
+
+1. Dò từ gốc xuống bằng tìm kiếm nhị phân trên khóa.
+2. Khi tới lá:
+   - Tìm vị trí bằng tìm kiếm nhị phân.
+   - Chèn khóa và id (tạo bucket mới nếu cần).
+3. Nếu lá tràn:
+   - Chia thành hai lá, phân phối khóa/giá trị đều nhau.
+   - Cập nhật liên kết lá (`Previous`/`Next`).
+   - Đưa khóa phân cách lên cha thông qua `InsertIntoParent`.
+4. Quá trình có thể lan lên; tách gốc tạo gốc mới.
+
+## Duyệt phạm vi
+
+`Traverse` kết hợp nhiều helper để cung cấp quét có thứ tự:
+
+- `GetLeftmostLeaf()` lấy lá trái nhất cho duyệt toàn bộ.
+- `FindFirstPosition(key, inclusive)` xác định vị trí bắt đầu trong lá.
+- Iterator trả về `KeyValuePair<string, IReadOnlyList<int>>` để người dùng stream mà không cần gom bộ nhớ.
+
+`IndexManager.SearchTopK` minh họa việc dừng sau khi thu được `k` id. Khi cần thứ tự giảm dần, helper gom toàn bộ và đảo chiều; với tập lớn có thể tối ưu thêm.
+
+## Điểm tích hợp
+
+- `IndexManager.BuildIndex(fieldName)` tạo cây cho từng cột.
+- `TableDefinition.EnsureIndex(fieldName)` xây dựng lười và lưu cache.
+- Bộ test (`test/search_test.cs`) minh họa các truy vấn bằng, tiền tố, khoảng, lớn hơn/nhỏ hơn và top-k.
+
+### Build index từ dữ liệu bảng
+
+`IndexManager.BuildIndex` đọc toàn bộ bảng, tạo `BPlusTree`, sau đó gọi `Insert` cho từng bản ghi:
+
+```csharp
+var tree = new BPlusTree();
+for (int r = 0; r < all.GetLength(0); r++)
+{
+  var key = all[r, fieldPos]?.ToString() ?? string.Empty;
+  tree.Insert(key, r);
+}
+indexes[fieldName] = tree;
+```
+
+Nhờ vậy việc xây dựng lại chỉ mục đơn giản và tái sử dụng chính pipeline chèn của cây.
+
+## Ghi chú triển khai
+
+- Khóa hiện xử lý phân biệt hoa thường; nếu cần chuẩn hóa, gọi phía ngoài.
+- Khóa trùng dùng chung một bucket (`List<int>`); thao tác xóa bỏ id nhưng chưa dọn bucket rỗng ngay (có thể bổ sung sau).
+- Lá dùng `Next`/`Previous` để quét nhanh; chú thích nullable đảm bảo tránh lỗi khi tới cuối chuỗi.
+- Cây lưu trong bộ nhớ; mỗi lần cần có thể tái xây dựng từ dữ liệu bảng.
+
+## Hướng mở rộng
+
+- **Bulk load**: tạo cây cân bằng trực tiếp từ danh sách khóa đã sắp xếp để tăng tốc dựng chỉ mục.
+- **Reverse traversal**: bổ sung iterator ngược tránh phải gom toàn bộ khi cần thứ tự giảm dần.
+- **Cursor API**: cung cấp con trỏ có thể tiếp tục giữa chừng cho các phiên quét dài.
+- **Statistics**: theo dõi số lượng nút/chiều cao cho mục đích chẩn đoán.
+- **Concurrency**: thêm khóa đọc/ghi nếu nhiều luồng truy cập đồng thời.
+
+## Tài liệu tham khảo
+
+- Comer, Douglas. "The Ubiquitous B-tree." *ACM Computing Surveys*.
+- Bayer, Rudolf; McCreight, Edward. "Organization and maintenance of large ordered indexes." *(1970).* 
+- Graefe, Goetz. "Modern B-tree techniques." *(2004).* 

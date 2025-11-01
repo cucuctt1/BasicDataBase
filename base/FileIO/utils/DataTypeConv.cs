@@ -5,7 +5,7 @@ namespace BasicDataBase.FileIO
 {
     public static class DataTypeConverter
     {
-        public static byte[] ObjectToBytes(object obj)
+        public static byte[] ObjectToBytes(object? obj)
         {
             if (obj == null) return Array.Empty<byte>();
             switch (obj)
@@ -35,17 +35,18 @@ namespace BasicDataBase.FileIO
                 case char c:
                     return BitConverter.GetBytes(c);
                 case string str:
-                    return Encoding.UTF8.GetBytes(str);
+                    return Encoding.UTF8.GetBytes(str ?? string.Empty);
                 case DateTime dt:
                     return BitConverter.GetBytes(dt.Ticks);
                 default:
                     // fallback: serialize via ToString()
-                    return Encoding.UTF8.GetBytes(obj.ToString());
+                    var text = obj.ToString();
+                    return text == null ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(text);
             }
         }
 
         // Convert bytes (from data file) back into a typed object using the schema's field type
-        public static object BytesToObject(byte[] bytes, FieldType type)
+        public static object? BytesToObject(byte[]? bytes, FieldType type)
         {
             if (bytes == null || bytes.Length == 0) return null;
             try
@@ -68,7 +69,7 @@ namespace BasicDataBase.FileIO
         }
 
         // simple helper to get a string from bytes when schema isn't available
-        public static string BytesToString(byte[] bytes)
+        public static string? BytesToString(byte[]? bytes)
         {
             if (bytes == null || bytes.Length == 0) return null;
             return Encoding.UTF8.GetString(bytes);

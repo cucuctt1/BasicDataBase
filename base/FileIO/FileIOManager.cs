@@ -30,10 +30,10 @@ namespace BasicDataBase.FileIO
         }
 
         // Append a single record (array of field objects) to data file
-        public static void AppendRecord(string metadataPath, string dataPath, object[] record)
+        public static void AppendRecord(string metadataPath, string dataPath, object?[] record)
         {
             var (schema, fieldCount) = LoadSchemaAndFieldCount(metadataPath);
-            using (var fs = File.Open(dataPath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
+            using (var fs = File.Open(dataPath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read))
             using (var writer = new BinaryWriter(fs))
             {
                 fs.Seek(0, SeekOrigin.End);
@@ -84,7 +84,7 @@ namespace BasicDataBase.FileIO
         }
 
         // Read a record by index
-        public static object[]? ReadRecord(string metadataPath, string dataPath, long recordIndex)
+        public static object?[]? ReadRecord(string metadataPath, string dataPath, long recordIndex)
         {
             var (schema, fieldCount) = LoadSchemaAndFieldCount(metadataPath);
             if (!TryGetRecordOffsets(dataPath, fieldCount, (int)recordIndex, out var s, out var e))
@@ -108,16 +108,15 @@ namespace BasicDataBase.FileIO
                         val = DataTypeConverter.BytesToString(data);
                     values.Add(val);
                 }
-                // values contains object?[], but API declares object[]? so cast safely
-                return values.Cast<object>().ToArray();
+                return values.ToArray();
             }
         }
 
         // Read all records into a 2D array (rows x cols)
-        public static object[,] ReadAll(string metadataPath, string dataPath)
+        public static object?[,] ReadAll(string metadataPath, string dataPath)
         {
             var (schema, fieldCount) = LoadSchemaAndFieldCount(metadataPath);
-            var rows = new List<object[]>();
+            var rows = new List<object?[]>();
             using (var fs = File.OpenRead(dataPath))
             using (var reader = new BinaryReader(fs))
             {
@@ -140,12 +139,12 @@ namespace BasicDataBase.FileIO
                         values.Add(val);
                     }
                     if (truncated) break;
-                    rows.Add(values.Cast<object>().ToArray());
+                    rows.Add(values.ToArray());
                 }
             }
 
-            if (rows.Count == 0) return new object[0, 0];
-            var result = new object[rows.Count, fieldCount];
+            if (rows.Count == 0) return new object?[0, 0];
+            var result = new object?[rows.Count, fieldCount];
             for (int r = 0; r < rows.Count; r++)
                 for (int c = 0; c < fieldCount; c++)
                     result[r, c] = c < rows[r].Length ? rows[r][c] : null;
@@ -153,7 +152,7 @@ namespace BasicDataBase.FileIO
         }
 
         // Edit a record by index: append the new record and delete the old one (compaction by shifting)
-        public static void EditRecord(string metadataPath, string dataPath, long recordIndex, object[] newRecord)
+        public static void EditRecord(string metadataPath, string dataPath, long recordIndex, object?[] newRecord)
         {
             // Append new record
             AppendRecord(metadataPath, dataPath, newRecord);
