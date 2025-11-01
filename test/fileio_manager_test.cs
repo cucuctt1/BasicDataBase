@@ -1,5 +1,6 @@
 using BasicDataBase.FileIO;
 using System;
+using System.Linq;
 
 namespace BasicDataBase.Test
 {
@@ -44,7 +45,15 @@ namespace BasicDataBase.Test
             // Read single record
             var rec1 = FileIOManager.ReadRecord("unit_metadata.meta", "unit_data.dat", 1);
             Console.WriteLine("--- ReadRecord index 1 ---");
-            Console.WriteLine(string.Join(" | ", rec1));
+            if (rec1 != null)
+            {
+                var printable = rec1.Select(v => v?.ToString() ?? "<null>").ToArray();
+                Console.WriteLine(string.Join(" | ", printable));
+            }
+            else
+            {
+                Console.WriteLine("<record missing>");
+            }
 
             // Edit record 1 (append new record and delete old)
             var newRec = new object[] { 2, "B-updated", false, DateTime.Now, "p2" };

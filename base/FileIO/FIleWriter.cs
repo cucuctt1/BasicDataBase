@@ -91,7 +91,7 @@ namespace BasicDataBase.FileIO
         {
             // Perform chunked copy from recordEnd -> recordStart, then truncate
             const int BufferSize = 81920; // 80 KB
-            using (var fs = new FileStream(dataPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            using (var fs = new FileStream(dataPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
             {
                 long fileLength = fs.Length;
 

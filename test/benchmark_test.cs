@@ -33,18 +33,23 @@ namespace BasicDataBase.Test
             // Prepare a small pool of names
             string[] names = new string[] { "Alex", "Ben", "Cara", "Dana", "Eli", "Faye", "Gus", "Hana", "Ira", "Jill" };
 
+            object[] CreateRecord(int id)
+            {
+                return new object[]
+                {
+                    id,
+                    names[rnd.Next(names.Length)],
+                    rnd.NextDouble() > 0.5,
+                    DateTime.UtcNow,
+                    $"file_{rnd.Next(1000)}.bin"
+                };
+            }
+
             // Write benchmark: append count records
             var sw = Stopwatch.StartNew();
             for (int i = 0; i < count; i++)
             {
-                var rec = new object[] {
-                    i + 1,
-                    names[rnd.Next(names.Length)],
-                    (rnd.NextDouble() > 0.5),
-                    DateTime.UtcNow,
-                    $"file_{rnd.Next(1000)}.bin"
-                };
-                FileIOManager.AppendRecord("bench_metadata.meta", "bench_data.dat", rec);
+                FileIOManager.AppendRecord("bench_metadata.meta", "bench_data.dat", CreateRecord(i + 1));
             }
             sw.Stop();
             Console.WriteLine($"Write: {count} records -> {sw.Elapsed.TotalSeconds:F3}s");
@@ -61,17 +66,62 @@ namespace BasicDataBase.Test
 
             // Edit: update middle record
             int mid = count / 2;
-            var newRec = new object[] { mid + 1, "EditedName", true, DateTime.UtcNow, "edited.bin" };
+            var editRec = new object[] { mid + 1, "EditedName", true, DateTime.UtcNow, "edited.bin" };
             var swe = Stopwatch.StartNew();
-            FileIOManager.EditRecord("bench_metadata.meta", "bench_data.dat", mid, newRec);
+            FileIOManager.EditRecord("bench_metadata.meta", "bench_data.dat", mid, editRec);
             swe.Stop();
             Console.WriteLine($"Edit (append+delete old) at index {mid}: {swe.Elapsed.TotalSeconds:F3}s");
 
-            // Delete: delete last record
-            var swd = Stopwatch.StartNew();
-            FileIOManager.DeleteRecordByIndex("bench_metadata.meta", "bench_data.dat", count - 1);
-            swd.Stop();
-            Console.WriteLine($"Delete last record: {swd.Elapsed.TotalSeconds:F3}s");
+            // Delete: delete middle record (post-edit)
+            var swdMid = Stopwatch.StartNew();
+            FileIOManager.DeleteRecordByIndex("bench_metadata.meta", "bench_data.dat", mid);
+            swdMid.Stop();
+            Console.WriteLine($"Delete middle record: {swdMid.Elapsed.TotalSeconds:F3}s");
+            count--;
+
+            // Random edits
+            int editOps = Math.Max(10, Math.Min(200, count / 20));
+            var editIndices = new List<int>(editOps);
+            for (int i = 0; i < editOps; i++) editIndices.Add(rnd.Next(0, Math.Max(1, count)));
+            editIndices.Sort();
+            var swRandomEdit = Stopwatch.StartNew();
+            foreach (var idx in editIndices)
+            {
+                var rec = new object[] { idx + 1, $"RandEdit_{rnd.Next(1000)}", rnd.NextDouble() > 0.5, DateTime.UtcNow, $"rand_{rnd.Next(1000)}.bin" };
+                FileIOManager.EditRecord("bench_metadata.meta", "bench_data.dat", idx, rec);
+            }
+            swRandomEdit.Stop();
+            Console.WriteLine($"Random edits ({editOps} ops): {swRandomEdit.Elapsed.TotalSeconds:F3}s");
+
+            // Random deletes (sorted descending to keep indexes stable)
+            int deleteOps = Math.Max(10, Math.Min(200, count / 25));
+            var deleteIndices = new HashSet<int>();
+            while (deleteIndices.Count < deleteOps)
+            {
+                deleteIndices.Add(rnd.Next(0, Math.Max(1, count)));
+            }
+            var deleteList = deleteIndices.ToList();
+            deleteList.Sort();
+            deleteList.Reverse();
+            var swRandomDelete = Stopwatch.StartNew();
+            foreach (var idx in deleteList)
+            {
+                FileIOManager.DeleteRecordByIndex("bench_metadata.meta", "bench_data.dat", idx);
+                count--;
+            }
+            swRandomDelete.Stop();
+            Console.WriteLine($"Random deletes ({deleteOps} ops): {swRandomDelete.Elapsed.TotalSeconds:F3}s");
+
+            // Append additional records (simulating inserts after churn)
+            int addOps = deleteOps;
+            var swAdd = Stopwatch.StartNew();
+            for (int i = 0; i < addOps; i++)
+            {
+                FileIOManager.AppendRecord("bench_metadata.meta", "bench_data.dat", CreateRecord(count + i + 1));
+            }
+            swAdd.Stop();
+            Console.WriteLine($"Random adds ({addOps} ops): {swAdd.Elapsed.TotalSeconds:F3}s");
+            count += addOps;
 
             // Final size
             var fi2 = new System.IO.FileInfo("bench_data.dat");

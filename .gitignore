@@ -13,3 +13,5 @@
 obj/
 bin/
 tests/
+*.dat
+*.meta

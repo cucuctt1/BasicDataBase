@@ -15,12 +15,12 @@ namespace BasicDataBase.Test
             SchemaInstruction instruction = new SchemaInstruction(schema);
 
             // read all using FileIOManager (use test metadata file)
-            object[,] records = FileIOManager.ReadAll("test_metadata.meta", "test_data.dat");
+            object?[,] records = FileIOManager.ReadAll("test_metadata.meta", "test_data.dat");
 
             Console.WriteLine("Read Records:");
             for (int i = 0; i < records.GetLength(0); i++)
             {
-                var record = new object[records.GetLength(1)];
+                var record = new object?[records.GetLength(1)];
                 for (int j = 0; j < records.GetLength(1); j++)
                 {
                     record[j] = records[i, j];
@@ -40,7 +40,7 @@ namespace BasicDataBase.Test
             records = FileIOManager.ReadAll("test_metadata.meta", "test_data.dat");
             for (int i = 0; i < records.GetLength(0); i++)
             {
-                var record = new object[records.GetLength(1)];
+                var record = new object?[records.GetLength(1)];
                 for (int j = 0; j < records.GetLength(1); j++)
                 {
                     record[j] = records[i, j];

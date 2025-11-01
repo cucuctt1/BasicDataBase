@@ -82,7 +82,7 @@ namespace BasicDataBase.FileIO
                             value = DataTypeConverter.BytesToString(fieldBytes);
                         }
 
-                        currentRow.Add(value);
+                        currentRow.Add(value!);
                     }
                     if (currentRow.Count > 0)
                         rows.Add(currentRow.ToArray());
