@@ -6,7 +6,7 @@ namespace BasicDataBase.Test
 {
     public class Search_Test
     {
-        // Create sample data and build a name index using BPlusTree, then search for 'Alice'
+    // Create sample data and build a name index using the binary search tree, then search for 'Alice'
         public static void Test()
         {
             // cleanup
